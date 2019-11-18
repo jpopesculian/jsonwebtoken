@@ -1,3 +1,4 @@
+use alloc::string::{String, ToString};
 use serde::{Deserialize, Serialize};
 
 use crate::algorithms::Algorithm;

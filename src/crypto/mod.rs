@@ -5,6 +5,7 @@ use crate::algorithms::Algorithm;
 use crate::errors::Result;
 use crate::pem::decoder::PemEncodedKey;
 use crate::serialization::{b64_decode, b64_encode};
+use alloc::string::String;
 
 pub(crate) mod ecdsa;
 pub(crate) mod rsa;

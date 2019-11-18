@@ -1,6 +1,6 @@
 use crate::errors::{Error, ErrorKind, Result};
+use core::str::FromStr;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 /// The algorithms supported for signing/verifying JWTs
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]

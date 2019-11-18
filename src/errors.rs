@@ -1,6 +1,6 @@
-use std::error::Error as StdError;
-use std::fmt;
-use std::result;
+use alloc::boxed::Box;
+use core::fmt;
+use core::result;
 
 use base64;
 use serde_json;
@@ -65,7 +65,7 @@ pub enum ErrorKind {
     /// An error happened while serializing/deserializing JSON
     Json(serde_json::Error),
     /// Some of the text was invalid UTF-8
-    Utf8(::std::string::FromUtf8Error),
+    Utf8(::alloc::string::FromUtf8Error),
     /// Something unspecified went wrong with crypto
     Crypto(::ring::error::Unspecified),
 
@@ -78,30 +78,56 @@ pub enum ErrorKind {
     __Nonexhaustive,
 }
 
-impl StdError for Error {
+impl ErrorKind {
+    fn description(&self) -> Option<&'static str> {
+        match self {
+            ErrorKind::InvalidToken => Some("invalid token"),
+            ErrorKind::InvalidSignature => Some("invalid signature"),
+            ErrorKind::InvalidEcdsaKey => Some("invalid ECDSA key"),
+            ErrorKind::InvalidRsaKey => Some("invalid RSA key"),
+            ErrorKind::ExpiredSignature => Some("expired signature"),
+            ErrorKind::InvalidIssuer => Some("invalid issuer"),
+            ErrorKind::InvalidAudience => Some("invalid audience"),
+            ErrorKind::InvalidSubject => Some("invalid subject"),
+            ErrorKind::ImmatureSignature => Some("immature signature"),
+            ErrorKind::InvalidAlgorithm => Some("algorithms don't match"),
+            ErrorKind::InvalidAlgorithmName => Some("not a known algorithm"),
+            ErrorKind::InvalidKeyFormat => Some("invalid key format"),
+            ErrorKind::__Nonexhaustive => Some("unknown error"),
+            ErrorKind::Base64(_)
+            | ErrorKind::Json(_)
+            | ErrorKind::Utf8(_)
+            | ErrorKind::Crypto(_) => None,
+        }
+    }
+}
+
+// TODO better handle crypto errors
+#[cfg(any(feature = "std", test))]
+impl std::error::Error for Error {
     fn description(&self) -> &str {
         match *self.0 {
-            ErrorKind::InvalidToken => "invalid token",
-            ErrorKind::InvalidSignature => "invalid signature",
-            ErrorKind::InvalidEcdsaKey => "invalid ECDSA key",
-            ErrorKind::InvalidRsaKey => "invalid RSA key",
-            ErrorKind::ExpiredSignature => "expired signature",
-            ErrorKind::InvalidIssuer => "invalid issuer",
-            ErrorKind::InvalidAudience => "invalid audience",
-            ErrorKind::InvalidSubject => "invalid subject",
-            ErrorKind::ImmatureSignature => "immature signature",
-            ErrorKind::InvalidAlgorithm => "algorithms don't match",
-            ErrorKind::InvalidAlgorithmName => "not a known algorithm",
-            ErrorKind::InvalidKeyFormat => "invalid key format",
+            ErrorKind::InvalidToken
+            | ErrorKind::InvalidSignature
+            | ErrorKind::InvalidEcdsaKey
+            | ErrorKind::InvalidRsaKey
+            | ErrorKind::ExpiredSignature
+            | ErrorKind::InvalidIssuer
+            | ErrorKind::InvalidAudience
+            | ErrorKind::InvalidSubject
+            | ErrorKind::ImmatureSignature
+            | ErrorKind::InvalidAlgorithm
+            | ErrorKind::InvalidKeyFormat
+            | ErrorKind::InvalidAlgorithmName
+            | ErrorKind::__Nonexhaustive => self.0.description().unwrap(),
             ErrorKind::Base64(ref err) => err.description(),
             ErrorKind::Json(ref err) => err.description(),
             ErrorKind::Utf8(ref err) => err.description(),
-            ErrorKind::Crypto(ref err) => err.description(),
-            ErrorKind::__Nonexhaustive => "unknown error",
+            ErrorKind::Crypto(_) => "undefined error",
         }
     }
 
-    fn cause(&self) -> Option<&dyn StdError> {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self.0 {
             ErrorKind::InvalidToken => None,
             ErrorKind::InvalidSignature => None,
@@ -118,7 +144,7 @@ impl StdError for Error {
             ErrorKind::Base64(ref err) => Some(err),
             ErrorKind::Json(ref err) => Some(err),
             ErrorKind::Utf8(ref err) => Some(err),
-            ErrorKind::Crypto(ref err) => Some(err),
+            ErrorKind::Crypto(_) => None,
             ErrorKind::__Nonexhaustive => None,
         }
     }
@@ -138,12 +164,12 @@ impl fmt::Display for Error {
             | ErrorKind::ImmatureSignature
             | ErrorKind::InvalidAlgorithm
             | ErrorKind::InvalidKeyFormat
-            | ErrorKind::InvalidAlgorithmName => write!(f, "{}", self.description()),
+            | ErrorKind::InvalidAlgorithmName
+            | ErrorKind::__Nonexhaustive => write!(f, "{}", self.0.description().unwrap()),
             ErrorKind::Json(ref err) => write!(f, "JSON error: {}", err),
             ErrorKind::Utf8(ref err) => write!(f, "UTF-8 error: {}", err),
-            ErrorKind::Crypto(ref err) => write!(f, "Crypto error: {}", err),
+            ErrorKind::Crypto(_) => write!(f, "Crypto error: undefined"),
             ErrorKind::Base64(ref err) => write!(f, "Base64 error: {}", err),
-            ErrorKind::__Nonexhaustive => write!(f, "Unknown error"),
         }
     }
 }
@@ -160,8 +186,8 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<::std::string::FromUtf8Error> for Error {
-    fn from(err: ::std::string::FromUtf8Error) -> Error {
+impl From<::alloc::string::FromUtf8Error> for Error {
+    fn from(err: ::alloc::string::FromUtf8Error) -> Error {
         new_error(ErrorKind::Utf8(err))
     }
 }

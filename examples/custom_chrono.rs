@@ -75,20 +75,19 @@ mod jwt_numeric_date {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let sub = "Custom DateTime ser/de".to_string();
     let iat = Utc::now();
     let exp = iat + chrono::Duration::days(1);
 
     let claims = Claims { sub: sub.clone(), iat, exp };
 
-    let token = jsonwebtoken::encode(&Header::default(), &claims, SECRET.as_ref())?;
+    let token = jsonwebtoken::encode(&Header::default(), &claims, SECRET.as_ref()).unwrap();
 
     println!("serialized token: {}", &token);
 
     let token_data =
-        jsonwebtoken::decode::<Claims>(&token, SECRET.as_ref(), &Validation::default())?;
+        jsonwebtoken::decode::<Claims>(&token, SECRET.as_ref(), &Validation::default()).unwrap();
 
     println!("token data:\n{:#?}", &token_data);
-    Ok(())
 }

@@ -1,4 +1,5 @@
 use crate::errors::{ErrorKind, Result};
+use alloc::vec::Vec;
 
 use simple_asn1::{BigUint, OID};
 

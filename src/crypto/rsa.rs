@@ -5,6 +5,7 @@ use crate::algorithms::Algorithm;
 use crate::errors::{ErrorKind, Result};
 use crate::pem::decoder::PemEncodedKey;
 use crate::serialization::{b64_decode, b64_encode};
+use alloc::string::String;
 
 /// Only used internally when validating RSA, to map from our enum to the Ring param structs.
 pub(crate) fn alg_to_rsa_parameters(alg: Algorithm) -> &'static signature::RsaParameters {

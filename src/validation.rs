@@ -1,4 +1,8 @@
-use std::collections::HashSet;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use hashbrown::HashSet;
+
+#[cfg(any(feature = "std", test))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::map::Map;
@@ -97,31 +101,36 @@ impl Default for Validation {
     }
 }
 
+#[cfg(any(feature = "std", test))]
 fn get_current_timestamp() -> u64 {
     let start = SystemTime::now();
     start.duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs()
 }
 
 pub fn validate(claims: &Map<String, Value>, options: &Validation) -> Result<()> {
-    let now = get_current_timestamp();
+    cfg_if! {
+        if #[cfg(any(feature = "std", test))] {
+            let now = get_current_timestamp();
 
-    if options.validate_exp {
-        if let Some(exp) = claims.get("exp") {
-            if from_value::<u64>(exp.clone())? < now - options.leeway {
-                return Err(new_error(ErrorKind::ExpiredSignature));
+            if options.validate_exp {
+                if let Some(exp) = claims.get("exp") {
+                    if from_value::<u64>(exp.clone())? < now - options.leeway {
+                        return Err(new_error(ErrorKind::ExpiredSignature));
+                    }
+                } else {
+                    return Err(new_error(ErrorKind::ExpiredSignature));
+                }
             }
-        } else {
-            return Err(new_error(ErrorKind::ExpiredSignature));
-        }
-    }
 
-    if options.validate_nbf {
-        if let Some(nbf) = claims.get("nbf") {
-            if from_value::<u64>(nbf.clone())? > now + options.leeway {
-                return Err(new_error(ErrorKind::ImmatureSignature));
+            if options.validate_nbf {
+                if let Some(nbf) = claims.get("nbf") {
+                    if from_value::<u64>(nbf.clone())? > now + options.leeway {
+                        return Err(new_error(ErrorKind::ImmatureSignature));
+                    }
+                } else {
+                    return Err(new_error(ErrorKind::ImmatureSignature));
+                }
             }
-        } else {
-            return Err(new_error(ErrorKind::ImmatureSignature));
         }
     }
 
@@ -164,38 +173,107 @@ mod tests {
     use serde_json::map::Map;
     use serde_json::to_value;
 
-    use super::{get_current_timestamp, validate, Validation};
+    use super::{validate, Validation};
 
     use crate::errors::ErrorKind;
 
-    #[test]
-    fn exp_in_future_ok() {
-        let mut claims = Map::new();
-        claims.insert("exp".to_string(), to_value(get_current_timestamp() + 10000).unwrap());
-        let res = validate(&claims, &Validation::default());
-        assert!(res.is_ok());
-    }
+    cfg_if! {
+        if #[cfg(feature = "std")] {
+            use super::get_current_timestamp;
 
-    #[test]
-    fn exp_in_past_fails() {
-        let mut claims = Map::new();
-        claims.insert("exp".to_string(), to_value(get_current_timestamp() - 100000).unwrap());
-        let res = validate(&claims, &Validation::default());
-        assert!(res.is_err());
+            #[test]
+            fn exp_in_future_ok() {
+                let mut claims = Map::new();
+                claims.insert("exp".to_string(), to_value(get_current_timestamp() + 10000).unwrap());
+                let res = validate(&claims, &Validation::default());
+                assert!(res.is_ok());
+            }
 
-        match res.unwrap_err().kind() {
-            &ErrorKind::ExpiredSignature => (),
-            _ => assert!(false),
-        };
-    }
+            #[test]
+            fn exp_in_past_fails() {
+                let mut claims = Map::new();
+                claims.insert("exp".to_string(), to_value(get_current_timestamp() - 100000).unwrap());
+                let res = validate(&claims, &Validation::default());
+                assert!(res.is_err());
 
-    #[test]
-    fn exp_in_past_but_in_leeway_ok() {
-        let mut claims = Map::new();
-        claims.insert("exp".to_string(), to_value(get_current_timestamp() - 500).unwrap());
-        let validation = Validation { leeway: 1000 * 60, ..Default::default() };
-        let res = validate(&claims, &validation);
-        assert!(res.is_ok());
+                match res.unwrap_err().kind() {
+                    &ErrorKind::ExpiredSignature => (),
+                    _ => assert!(false),
+                };
+            }
+
+            #[test]
+            fn exp_in_past_but_in_leeway_ok() {
+                let mut claims = Map::new();
+                claims.insert("exp".to_string(), to_value(get_current_timestamp() - 500).unwrap());
+                let validation = Validation { leeway: 1000 * 60, ..Default::default() };
+                let res = validate(&claims, &validation);
+                assert!(res.is_ok());
+            }
+
+            #[test]
+            fn nbf_in_past_ok() {
+                let mut claims = Map::new();
+                claims.insert("nbf".to_string(), to_value(get_current_timestamp() - 10000).unwrap());
+                let validation =
+                    Validation { validate_exp: false, validate_nbf: true, ..Validation::default() };
+                let res = validate(&claims, &validation);
+                assert!(res.is_ok());
+            }
+
+            #[test]
+            fn nbf_in_future_fails() {
+                let mut claims = Map::new();
+                claims.insert("nbf".to_string(), to_value(get_current_timestamp() + 100000).unwrap());
+                let validation =
+                    Validation { validate_exp: false, validate_nbf: true, ..Validation::default() };
+                let res = validate(&claims, &validation);
+                assert!(res.is_err());
+
+                match res.unwrap_err().kind() {
+                    &ErrorKind::ImmatureSignature => (),
+                    _ => assert!(false),
+                };
+            }
+
+            #[test]
+            fn nbf_in_future_but_in_leeway_ok() {
+                let mut claims = Map::new();
+                claims.insert("nbf".to_string(), to_value(get_current_timestamp() + 500).unwrap());
+                let validation = Validation {
+                    leeway: 1000 * 60,
+                    validate_nbf: true,
+                    validate_exp: false,
+                    ..Default::default()
+                };
+                let res = validate(&claims, &validation);
+                assert!(res.is_ok());
+            }
+
+            // https://github.com/Keats/jsonwebtoken/issues/51
+            #[test]
+            fn does_validation_in_right_order() {
+                let mut claims = Map::new();
+                claims.insert("exp".to_string(), to_value(get_current_timestamp() + 10000).unwrap());
+                let v = Validation {
+                    leeway: 5,
+                    validate_exp: true,
+                    iss: Some("iss no check".to_string()),
+                    sub: Some("sub no check".to_string()),
+                    ..Validation::default()
+                };
+                let res = validate(&claims, &v);
+                // It errors because it needs to validate iss/sub which are missing
+                assert!(res.is_err());
+                match res.unwrap_err().kind() {
+                    &ErrorKind::InvalidIssuer => (),
+                    t @ _ => {
+                        println!("{:?}", t);
+                        assert!(false)
+                    }
+                };
+            }
+        }
     }
 
     // https://github.com/Keats/jsonwebtoken/issues/51
@@ -208,45 +286,6 @@ mod tests {
             &ErrorKind::ExpiredSignature => (),
             _ => assert!(false),
         };
-    }
-
-    #[test]
-    fn nbf_in_past_ok() {
-        let mut claims = Map::new();
-        claims.insert("nbf".to_string(), to_value(get_current_timestamp() - 10000).unwrap());
-        let validation =
-            Validation { validate_exp: false, validate_nbf: true, ..Validation::default() };
-        let res = validate(&claims, &validation);
-        assert!(res.is_ok());
-    }
-
-    #[test]
-    fn nbf_in_future_fails() {
-        let mut claims = Map::new();
-        claims.insert("nbf".to_string(), to_value(get_current_timestamp() + 100000).unwrap());
-        let validation =
-            Validation { validate_exp: false, validate_nbf: true, ..Validation::default() };
-        let res = validate(&claims, &validation);
-        assert!(res.is_err());
-
-        match res.unwrap_err().kind() {
-            &ErrorKind::ImmatureSignature => (),
-            _ => assert!(false),
-        };
-    }
-
-    #[test]
-    fn nbf_in_future_but_in_leeway_ok() {
-        let mut claims = Map::new();
-        claims.insert("nbf".to_string(), to_value(get_current_timestamp() + 500).unwrap());
-        let validation = Validation {
-            leeway: 1000 * 60,
-            validate_nbf: true,
-            validate_exp: false,
-            ..Default::default()
-        };
-        let res = validate(&claims, &validation);
-        assert!(res.is_ok());
     }
 
     #[test]
@@ -406,30 +445,6 @@ mod tests {
         match res.unwrap_err().kind() {
             &ErrorKind::InvalidAudience => (),
             _ => assert!(false),
-        };
-    }
-
-    // https://github.com/Keats/jsonwebtoken/issues/51
-    #[test]
-    fn does_validation_in_right_order() {
-        let mut claims = Map::new();
-        claims.insert("exp".to_string(), to_value(get_current_timestamp() + 10000).unwrap());
-        let v = Validation {
-            leeway: 5,
-            validate_exp: true,
-            iss: Some("iss no check".to_string()),
-            sub: Some("sub no check".to_string()),
-            ..Validation::default()
-        };
-        let res = validate(&claims, &v);
-        // It errors because it needs to validate iss/sub which are missing
-        assert!(res.is_err());
-        match res.unwrap_err().kind() {
-            &ErrorKind::InvalidIssuer => (),
-            t @ _ => {
-                println!("{:?}", t);
-                assert!(false)
-            }
         };
     }
 }

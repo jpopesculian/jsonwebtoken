@@ -2,6 +2,17 @@
 //!
 //! Documentation:  [stable](https://docs.rs/jsonwebtoken/)
 #![deny(missing_docs)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
+
+#[cfg(any(feature = "std", test))]
+#[macro_use]
+extern crate std;
+
+#[macro_use]
+extern crate alloc;
+
+#[macro_use]
+extern crate cfg_if;
 
 mod algorithms;
 /// Lower level functions, if you want to do something other than JWTs
@@ -25,6 +36,7 @@ use serde::ser::Serialize;
 
 use crate::errors::Result;
 use crate::serialization::b64_encode_part;
+use alloc::string::String;
 
 /// Encode the header and claims given and sign the payload using the algorithm from the header and the key.
 /// If the algorithm given is RSA or EC, the key needs to be in the PEM format.

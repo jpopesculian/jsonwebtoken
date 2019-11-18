@@ -4,6 +4,7 @@ use crate::algorithms::Algorithm;
 use crate::errors::Result;
 use crate::pem::decoder::PemEncodedKey;
 use crate::serialization::b64_encode;
+use alloc::string::String;
 
 /// Only used internally when validating EC, to map from our enum to the Ring EcdsaVerificationAlgorithm structs.
 pub(crate) fn alg_to_ec_verification(

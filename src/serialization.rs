@@ -1,3 +1,5 @@
+use alloc::string::String;
+use alloc::vec::Vec;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use serde_json::map::Map;
