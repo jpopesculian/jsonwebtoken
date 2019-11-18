@@ -103,7 +103,7 @@ impl ErrorKind {
 }
 
 // TODO better handle crypto errors
-#[cfg(any(feature = "std", test))]
+#[cfg(feature = "std")]
 impl std::error::Error for Error {
     fn description(&self) -> &str {
         match *self.0 {
@@ -123,7 +123,7 @@ impl std::error::Error for Error {
             ErrorKind::Base64(ref err) => err.description(),
             ErrorKind::Json(ref err) => err.description(),
             ErrorKind::Utf8(ref err) => err.description(),
-            ErrorKind::Crypto(_) => "undefined error",
+            ErrorKind::Crypto(ref err) => err.description(),
         }
     }
 
@@ -144,7 +144,7 @@ impl std::error::Error for Error {
             ErrorKind::Base64(ref err) => Some(err),
             ErrorKind::Json(ref err) => Some(err),
             ErrorKind::Utf8(ref err) => Some(err),
-            ErrorKind::Crypto(_) => None,
+            ErrorKind::Crypto(ref err) => Some(err),
             ErrorKind::__Nonexhaustive => None,
         }
     }
@@ -168,7 +168,7 @@ impl fmt::Display for Error {
             | ErrorKind::__Nonexhaustive => write!(f, "{}", self.0.description().unwrap()),
             ErrorKind::Json(ref err) => write!(f, "JSON error: {}", err),
             ErrorKind::Utf8(ref err) => write!(f, "UTF-8 error: {}", err),
-            ErrorKind::Crypto(_) => write!(f, "Crypto error: undefined"),
+            ErrorKind::Crypto(ref err) => write!(f, "Crypto error: {}", err),
             ErrorKind::Base64(ref err) => write!(f, "Base64 error: {}", err),
         }
     }

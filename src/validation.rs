@@ -2,7 +2,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use hashbrown::HashSet;
 
-#[cfg(any(feature = "std", test))]
+#[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::map::Map;
@@ -101,7 +101,7 @@ impl Default for Validation {
     }
 }
 
-#[cfg(any(feature = "std", test))]
+#[cfg(feature = "std")]
 fn get_current_timestamp() -> u64 {
     let start = SystemTime::now();
     start.duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs()
@@ -109,7 +109,7 @@ fn get_current_timestamp() -> u64 {
 
 pub fn validate(claims: &Map<String, Value>, options: &Validation) -> Result<()> {
     cfg_if! {
-        if #[cfg(any(feature = "std", test))] {
+        if #[cfg(feature = "std")] {
             let now = get_current_timestamp();
 
             if options.validate_exp {
@@ -170,6 +170,7 @@ pub fn validate(claims: &Map<String, Value>, options: &Validation) -> Result<()>
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::ToString;
     use serde_json::map::Map;
     use serde_json::to_value;
 
@@ -273,19 +274,19 @@ mod tests {
                     }
                 };
             }
-        }
-    }
 
-    // https://github.com/Keats/jsonwebtoken/issues/51
-    #[test]
-    fn validation_called_even_if_field_is_empty() {
-        let claims = Map::new();
-        let res = validate(&claims, &Validation::default());
-        assert!(res.is_err());
-        match res.unwrap_err().kind() {
-            &ErrorKind::ExpiredSignature => (),
-            _ => assert!(false),
-        };
+            // https://github.com/Keats/jsonwebtoken/issues/51
+            #[test]
+            fn validation_called_even_if_field_is_empty() {
+                let claims = Map::new();
+                let res = validate(&claims, &Validation::default());
+                assert!(res.is_err());
+                match res.unwrap_err().kind() {
+                    &ErrorKind::ExpiredSignature => (),
+                    _ => assert!(false),
+                };
+            }
+        }
     }
 
     #[test]

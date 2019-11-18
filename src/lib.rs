@@ -2,11 +2,7 @@
 //!
 //! Documentation:  [stable](https://docs.rs/jsonwebtoken/)
 #![deny(missing_docs)]
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
-
-#[cfg(any(feature = "std", test))]
-#[macro_use]
-extern crate std;
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
 extern crate alloc;
